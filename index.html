@@ -364,10 +364,31 @@ function App(){
     senha: fd.get('senha')||'',
     foto: foto,
     moedas: bonus,
+    app_bonus_recebido: false,
     created_at: new Date().toISOString()
    };
    if(!novo.usuario){ toastM('Usuario obrigatorio'); return; }
-   if(prest.find(p=>p.usuario===novo.usuario)){ toastM('Usuario ja existe'); return; }
+   // SEGURANÇA ANTI-DUPLICADO: mesmo telefone ou email
+   const limparTel = (t)=> (t||'').replace(/\D/g,'');
+   const emailLower = (novo.email||'').toLowerCase().trim();
+   const telLimpo = limparTel(novo.whatsapp);
+   const usuarioLower = (novo.usuario||'').toLowerCase().trim();
+   const duplicado = prest.find(p=>{
+    const pEmail = (p.email||'').toLowerCase().trim();
+    const pTel = limparTel(p.whatsapp);
+    const pUsuario = (p.usuario||'').toLowerCase().trim();
+    return (pEmail && emailLower && pEmail===emailLower) || (pTel && telLimpo && pTel===telLimpo) || (pUsuario && usuarioLower && pUsuario===usuarioLower);
+   });
+   if(duplicado){
+    const pEmail = (duplicado.email||'').toLowerCase().trim();
+    const pTel = limparTel(duplicado.whatsapp);
+    const pUsuario = (duplicado.usuario||'').toLowerCase().trim();
+    if(pUsuario===usuarioLower) toastM('❌ Usuario ja cadastrado');
+    else if(pEmail===emailLower) toastM('❌ Email ja cadastrado - faca login');
+    else if(pTel===telLimpo) toastM('❌ WhatsApp ja cadastrado - faca login');
+    else toastM('❌ Cadastro ja existe');
+    return;
+   }
    try{
     const {data} = await supa.from('prestadores').insert([{nome: novo.nome, sobrenome: novo.sobrenome, email: novo.email, whatsapp: novo.whatsapp, profissao: novo.profissao, cidade: novo.cidade, usuario: novo.usuario, senha: novo.senha, foto_url: '', moedas: novo.moedas}]).select();
     if(data && data[0]) novo.id = data[0].id;
@@ -419,15 +440,22 @@ function App(){
  };
 
  const baixarApp = async()=>{
+  const jaGanhou = localStorage.getItem('cc_app_bonus_ganho')==='true' || (user && user.app_bonus_recebido);
+  if(jaGanhou){ toastM('✅ Voce ja ganhou o bonus de 500 moedas por baixar o app! Bonus unico.'); setShowMenu(false); return; }
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+  if(isStandalone){ toastM('✅ Voce ja esta no app instalado!'); localStorage.setItem('cc_app_instalado','true'); setShowMenu(false); return; }
   if(deferredPrompt){
    deferredPrompt.prompt();
    const r = await deferredPrompt.userChoice;
    setDeferredPrompt(null);
    if(r.outcome === 'accepted'){
+    localStorage.setItem('cc_app_bonus_ganho','true');
+    localStorage.setItem('cc_app_instalado','true');
     if(user){
-     const nu = {...user, moedas: user.moedas + 500};
+     const nu = {...user, moedas: user.moedas + 500, app_bonus_recebido: true};
      setUser(nu); setPrest(prest.map(x=>x.id===user.id ? nu : x));
-     toastM('🎉 +500 moedas por baixar app!');
+     setHist(prev=>[{id: Date.now().toString(), pid: user.id, tipo: 'entrada', qtd: 500, desc: 'Bonus baixar app unico', data: new Date().toISOString()}, ...prev]);
+     toastM('🎉 +500 moedas bonus unico por baixar app!');
      try{ await supa.from('prestadores').update({moedas: nu.moedas}).eq('id', user.id); }catch(e){}
     } else {
      localStorage.setItem('cc_bonus', '500');
@@ -435,10 +463,13 @@ function App(){
     }
    }
   } else {
+   localStorage.setItem('cc_app_bonus_ganho','true');
+   localStorage.setItem('cc_app_instalado','true');
    if(user){
-    const nu = {...user, moedas: user.moedas + 500};
+    const nu = {...user, moedas: user.moedas + 500, app_bonus_recebido: true};
     setUser(nu); setPrest(prest.map(x=>x.id===user.id ? nu : x));
-    toastM('🎉 +500 moedas por baixar app!');
+    setHist(prev=>[{id: Date.now().toString(), pid: user.id, tipo: 'entrada', qtd: 500, desc: 'Bonus baixar app unico', data: new Date().toISOString()}, ...prev]);
+    toastM('🎉 +500 moedas bonus unico!');
     try{ await supa.from('prestadores').update({moedas: nu.moedas}).eq('id', user.id); }catch(e){}
    } else {
     localStorage.setItem('cc_bonus', '500');
@@ -576,7 +607,22 @@ function App(){
     <div className="mt-6 space-y-2">
      <button onClick={()=>{setShowMenu(false); setShowPerfil(true);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 flex items-center gap-3"><span>👤</span> Meu Perfil Completo</button>
      <button onClick={()=>{setShowMenu(false); if(!user){setShowLogin(true); return;} setShowCompra(PLANOS[1]);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 flex items-center gap-3"><span>💰</span> Comprar Moedas</button>
-     <button onClick={baixarApp} className="w-full text-left px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-yellow-500 font-bold text-[#0A1931] shadow flex items-center gap-3 hover:opacity-90"><span>📲</span> Baixar Aplicativo +500 moedas GRÁTIS</button>
+     {(()=>{
+     try{
+      const jaGanhou = localStorage.getItem('cc_app_bonus_ganho')==='true' || (user && user.app_bonus_recebido);
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+      const isApp = isStandalone || localStorage.getItem('cc_app_instalado')==='true';
+      if(isApp){
+       return <div className="w-full text-left px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-green-700 text-xs font-bold flex items-center gap-3"><span>✅</span> App instalado - Bonus ja recebido</div>;
+      }
+      if(jaGanhou){
+       return <div className="w-full text-left px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold flex items-center gap-3"><span>✅</span> Bonus de 500 moedas ja recebido</div>;
+      }
+      return <button onClick={baixarApp} className="w-full text-left px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-yellow-500 font-bold text-[#0A1931] shadow flex items-center gap-3 hover:opacity-90"><span>📲</span> Baixar Aplicativo +500 moedas GRATIS (bonus unico)</button>;
+     }catch(e){
+      return <button onClick={baixarApp} className="w-full text-left px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-yellow-500 font-bold text-[#0A1931] shadow flex items-center gap-3 hover:opacity-90"><span>📲</span> Baixar Aplicativo +500 moedas GRATIS (bonus unico)</button>;
+     }
+    })()}
      <a href="https://wa.me/5518991488302" target="_blank" className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 flex items-center gap-3 block"><span>💬</span> Suporte 24h</a>
      <button onClick={()=>{setShowMenu(false); window.scrollTo({top:0, behavior:'smooth'});}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 flex items-center gap-3"><span>📋</span> Pedidos ao vivo - Tempo Real</button>
      <button onClick={()=>{setShowMenu(false); setShowPedido(true);}} className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 flex items-center gap-3"><span>➕</span> Pedir Orçamento</button>
