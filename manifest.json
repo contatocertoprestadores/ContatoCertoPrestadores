@@ -1,0 +1,29 @@
+{
+  "name": "Contato Certo Prestadores",
+  "short_name": "ContatoCerto",
+  "description": "Encontre prestadores - CLIENTE N\u00c3O PAGA NADA PARA ANUNCIAR - Ao vivo em tempo real",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A1931",
+  "theme_color": "#0A1931",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "logo.jpg",
+      "sizes": "1024x1024",
+      "type": "image/jpeg"
+    }
+  ]
+}
